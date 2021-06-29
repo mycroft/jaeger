@@ -44,6 +44,7 @@ const (
 	suffixSocketKeepAlive    = ".socket-keep-alive"
 	suffixUsername           = ".username"
 	suffixPassword           = ".password"
+	suffixAuthenticatorName  = ".authenticator-name"
 
 	// common storage settings
 	suffixSpanStoreWriteCacheTTL = ".span-store-write-cache-ttl"
@@ -212,6 +213,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig namespaceConfig) {
 		nsConfig.namespace+suffixPassword,
 		nsConfig.Authenticator.Basic.Password,
 		"Password for password authentication for Cassandra")
+	flagSet.String(
+		nsConfig.namespace+suffixAuthenticatorName,
+		nsConfig.Authenticator.Basic.AuthenticatorName,
+		"User a custom authentication for Cassandra")
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -253,6 +258,7 @@ func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
 	cfg.SocketKeepAlive = v.GetDuration(cfg.namespace + suffixSocketKeepAlive)
 	cfg.Authenticator.Basic.Username = v.GetString(cfg.namespace + suffixUsername)
 	cfg.Authenticator.Basic.Password = v.GetString(cfg.namespace + suffixPassword)
+	cfg.Authenticator.Basic.AuthenticatorName = v.GetString(cfg.namespace + suffixAuthenticatorName)
 	cfg.DisableCompression = v.GetBool(cfg.namespace + suffixDisableCompression)
 	cfg.TLS = tlsFlagsConfig.InitFromViper(v)
 }

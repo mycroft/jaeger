@@ -55,8 +55,9 @@ type Authenticator struct {
 
 // BasicAuthenticator holds the username and password for a password authenticator for a Cassandra cluster
 type BasicAuthenticator struct {
-	Username string `yaml:"username" mapstructure:"username"`
-	Password string `yaml:"password" mapstructure:"password" json:"-"`
+	Username          string `yaml:"username" mapstructure:"username"`
+	Password          string `yaml:"password" mapstructure:"password" json:"-"`
+	AuthenticatorName string `yaml:"authenticator_name", mapstructure:"authenticator_name"`
 }
 
 // ApplyDefaults copies settings from source unless its own value is non-zero.
@@ -141,9 +142,14 @@ func (c *Configuration) NewCluster(logger *zap.Logger) (*gocql.ClusterConfig, er
 	cluster.PoolConfig.HostSelectionPolicy = gocql.TokenAwareHostPolicy(fallbackHostSelectionPolicy, gocql.ShuffleReplicas())
 
 	if c.Authenticator.Basic.Username != "" && c.Authenticator.Basic.Password != "" {
-		cluster.Authenticator = gocql.PasswordAuthenticator{
-			Username: c.Authenticator.Basic.Username,
-			Password: c.Authenticator.Basic.Password,
+		// Do not use gocql PasswordAuthenticator to bypass authenticator name list.
+		if c.Authenticator.Basic.AuthenticatorName != "" {
+			cluster.Authenticator = c.Authenticator.Basic
+		} else {
+			cluster.Authenticator = gocql.PasswordAuthenticator{
+				Username: c.Authenticator.Basic.Username,
+				Password: c.Authenticator.Basic.Password,
+			}
 		}
 	}
 	tlsCfg, err := c.TLS.Config(logger)
@@ -165,4 +171,20 @@ func (c *Configuration) NewCluster(logger *zap.Logger) (*gocql.ClusterConfig, er
 
 func (c *Configuration) String() string {
 	return fmt.Sprintf("%+v", *c)
+}
+
+func (p BasicAuthenticator) Challenge(req []byte) ([]byte, gocql.Authenticator, error) {
+	if p.AuthenticatorName != string(req) {
+		return nil, nil, fmt.Errorf("unexpected authenticator %q", req)
+	}
+	resp := make([]byte, 2+len(p.Username)+len(p.Password))
+	resp[0] = 0
+	copy(resp[1:], p.Username)
+	resp[len(p.Username)+1] = 0
+	copy(resp[2+len(p.Username):], p.Password)
+	return resp, nil, nil
+}
+
+func (p BasicAuthenticator) Success(data []byte) error {
+	return nil
 }
